@@ -4,6 +4,8 @@
 
 ## Demo (Gameplay)
 
+https://github.com/user-attachments/assets/18b55dbe-a5fd-4bd3-9a9e-095b0ed191aa
+
 ## Running the game
 
 Simply run:
