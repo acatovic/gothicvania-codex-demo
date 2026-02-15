@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gothicvania Codex</title>
+    <link rel="icon" href="favicon.ico" type="image/x-icon" />
+    <style>
+      @font-face {
+        font-family: "Pixuf";
+        src: url("assets/fonts/Pixuf.ttf") format("truetype");
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at top, #2f2f36 0%, #16171c 45%, #0a0a0d 100%);
+        overflow: hidden;
+      }
+
+      #game-root {
+        image-rendering: pixelated;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-root"></div>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.86.0/dist/phaser.min.js"></script>
+    <script src="main.js"></script>
+  </body>
+</html>
