@@ -10,6 +10,11 @@ const PLAYER_JUMP_SPEED = -370;
 const PLAYER_GRAVITY = 980;
 const PLAYER_INVULNERABLE_MS = 900;
 const PLAYER_HURT_SEQUENCE_MS = 280;
+const CONTROLS_TEXT = "Movement: W/A/S/D or Arrow Keys\nAction: J or SPACE";
+const DEBUG_CONTROLS_TEXT = "W/UP jump, S/DOWN crouch, A/D or LEFT/RIGHT move, J/SPACE attack, ESC pause, ENTER restart on game over";
+const LEVEL_COMPLETE_TRIGGER_PADDING = 42;
+const LEVEL_COMPLETE_WALK_SPEED = 92;
+const LEVEL_COMPLETE_OFFSCREEN_PADDING = 28;
 const BGM_VOLUME = 0.16;
 
 const WIZARD_FRAME_WIDTH = 81;
@@ -169,7 +174,7 @@ class TitleScene extends Phaser.Scene {
     this.add.image(GAME_WIDTH * 0.5, GAME_HEIGHT * 0.36, "title");
     this.pressEnter = this.add.image(GAME_WIDTH * 0.5, GAME_HEIGHT * 0.76, "press-enter");
     this.instructionsText = this.add
-      .text(GAME_WIDTH * 0.5, GAME_HEIGHT * 0.9, "Movement: W/A/S/D; Action: J", {
+      .text(GAME_WIDTH * 0.5, GAME_HEIGHT * 0.9, CONTROLS_TEXT, {
         fontFamily: "Pixuf, monospace",
         fontSize: "8px",
         color: "#f0f0f0",
@@ -218,6 +223,8 @@ class LevelScene extends Phaser.Scene {
 
     this.isPaused = false;
     this.gameOver = false;
+    this.levelComplete = false;
+    this.levelCompleteScreenShown = false;
     this.health = 4;
     this.lastFacing = 1;
     this.playerInvulnerableUntil = 0;
@@ -263,11 +270,16 @@ class LevelScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.08, 0.05);
 
     this.keys = this.input.keyboard.addKeys({
-      left: Phaser.Input.Keyboard.KeyCodes.A,
-      right: Phaser.Input.Keyboard.KeyCodes.D,
-      up: Phaser.Input.Keyboard.KeyCodes.W,
-      down: Phaser.Input.Keyboard.KeyCodes.S,
-      attack: Phaser.Input.Keyboard.KeyCodes.J,
+      leftA: Phaser.Input.Keyboard.KeyCodes.A,
+      rightD: Phaser.Input.Keyboard.KeyCodes.D,
+      upW: Phaser.Input.Keyboard.KeyCodes.W,
+      downS: Phaser.Input.Keyboard.KeyCodes.S,
+      leftArrow: Phaser.Input.Keyboard.KeyCodes.LEFT,
+      rightArrow: Phaser.Input.Keyboard.KeyCodes.RIGHT,
+      upArrow: Phaser.Input.Keyboard.KeyCodes.UP,
+      downArrow: Phaser.Input.Keyboard.KeyCodes.DOWN,
+      attackJ: Phaser.Input.Keyboard.KeyCodes.J,
+      attackSpace: Phaser.Input.Keyboard.KeyCodes.SPACE,
       pause: Phaser.Input.Keyboard.KeyCodes.ESC,
       restart: Phaser.Input.Keyboard.KeyCodes.ENTER,
     });
@@ -333,7 +345,7 @@ class LevelScene extends Phaser.Scene {
       .setDepth(30)
       .setVisible(false);
     this.pauseInstructionsText = this.add
-      .text(GAME_WIDTH * 0.5, GAME_HEIGHT * 0.62, "Movement: W/A/S/D; Action: J", {
+      .text(GAME_WIDTH * 0.5, GAME_HEIGHT * 0.62, CONTROLS_TEXT, {
         fontFamily: "Pixuf, monospace",
         fontSize: "8px",
         color: "#f0f0f0",
@@ -353,6 +365,34 @@ class LevelScene extends Phaser.Scene {
         color: "#f5f5f5",
         stroke: "#000000",
         strokeThickness: 4,
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(40)
+      .setVisible(false);
+
+    this.levelCompleteText = this.add
+      .text(GAME_WIDTH * 0.5, GAME_HEIGHT * 0.43, "Congratulations!\nLevel Complete", {
+        fontFamily: "Pixuf, monospace",
+        fontSize: "16px",
+        color: "#f5f5f5",
+        stroke: "#000000",
+        strokeThickness: 4,
+        align: "center",
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(40)
+      .setVisible(false);
+
+    this.levelCompleteRestartText = this.add
+      .text(GAME_WIDTH * 0.5, GAME_HEIGHT * 0.62, "PRESS ENTER TO RESTART", {
+        fontFamily: "Pixuf, monospace",
+        fontSize: "10px",
+        color: "#f5f5f5",
+        stroke: "#000000",
+        strokeThickness: 3,
+        align: "center",
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
@@ -527,22 +567,35 @@ class LevelScene extends Phaser.Scene {
   }
 
   spawnGhouls() {
-    // Elevated platform near the opening encounter area.
-    const patrolSeedTileX = 43;
-    const seedWorldX = patrolSeedTileX * this.map.tileWidth + this.map.tileWidth * 0.5;
+    const placements = [
+      // Elevated opening encounter platform.
+      { seedTileX: 43, spawnLerp: 0.72, patrolDir: 1 },
+      // Mid-right flat platform before the late-level drop.
+      { seedTileX: 146, spawnLerp: 0.34, patrolDir: -1 },
+      // Far-right flat surface with no enemy coverage.
+      { seedTileX: 252, spawnLerp: 0.85, patrolDir: -1 },
+    ];
+
+    placements.forEach((placement) => this.spawnGhoulAtPlacement(placement));
+  }
+
+  spawnGhoulAtPlacement({ seedTileX, spawnLerp = 0.5, patrolDir = 1 }) {
+    const seedWorldX = seedTileX * this.map.tileWidth + this.map.tileWidth * 0.5;
     const tileY = this.findTopSolidTileYAtWorldX(seedWorldX);
     if (tileY === null) {
       return;
     }
 
-    const span = this.findSolidSpanAtTileRow(patrolSeedTileX, tileY);
+    const span = this.findSolidSpanAtTileRow(seedTileX, tileY);
     if (!span) {
       return;
     }
 
     const patrolLeftX = span.leftTileX * this.map.tileWidth + 12;
     const patrolRightX = (span.rightTileX + 1) * this.map.tileWidth - 12;
-    const spawnX = Phaser.Math.Linear(patrolLeftX, patrolRightX, 0.72);
+    const clampedLerp = Phaser.Math.Clamp(spawnLerp, 0.08, 0.92);
+    const spawnX = Phaser.Math.Linear(patrolLeftX, patrolRightX, clampedLerp);
+    const direction = patrolDir < 0 ? -1 : 1;
 
     const ghoul = this.ghouls.create(
       spawnX,
@@ -560,11 +613,12 @@ class LevelScene extends Phaser.Scene {
     ghoul.setData("dead", false);
     ghoul.setData("invulnerableUntil", 0);
     ghoul.setData("nextShotAt", 0);
-    ghoul.setData("patrolDir", 1);
+    ghoul.setData("patrolDir", direction);
     ghoul.setData("nextTurnAt", 0);
     ghoul.setData("patrolLeftX", patrolLeftX);
     ghoul.setData("patrolRightX", patrolRightX);
-    ghoul.setFlipX(false);
+    // Ghoul source frames are authored facing left; flip while moving right.
+    ghoul.setFlipX(direction > 0);
     ghoul.anims.play("ghoul-run");
 
     this.nextEnemyId += 1;
@@ -639,7 +693,7 @@ class LevelScene extends Phaser.Scene {
   }
 
   togglePause() {
-    if (this.gameOver) {
+    if (this.gameOver || this.levelComplete) {
       return;
     }
 
@@ -649,12 +703,32 @@ class LevelScene extends Phaser.Scene {
     this.pauseInstructionsText.setVisible(this.isPaused);
   }
 
+  isLeftDown() {
+    return this.keys.leftA.isDown || this.keys.leftArrow.isDown;
+  }
+
+  isRightDown() {
+    return this.keys.rightD.isDown || this.keys.rightArrow.isDown;
+  }
+
+  isDownDown() {
+    return this.keys.downS.isDown || this.keys.downArrow.isDown;
+  }
+
+  isJumpJustPressed() {
+    return Phaser.Input.Keyboard.JustDown(this.keys.upW) || Phaser.Input.Keyboard.JustDown(this.keys.upArrow);
+  }
+
+  isAttackJustPressed() {
+    return Phaser.Input.Keyboard.JustDown(this.keys.attackJ) || Phaser.Input.Keyboard.JustDown(this.keys.attackSpace);
+  }
+
   tryStartAttack() {
     if (this.attackState.active || this.isPaused || this.gameOver) {
       return;
     }
 
-    if (this.keys.down.isDown) {
+    if (this.isDownDown()) {
       return;
     }
 
@@ -704,18 +778,18 @@ class LevelScene extends Phaser.Scene {
     const body = this.player.body;
     const onFloor = body.blocked.down;
     const inHurtSequence = this.time.now < this.playerHurtUntil;
-    const downHeld = !inHurtSequence && this.keys.down.isDown;
+    const downHeld = !inHurtSequence && this.isDownDown();
     const crouchHeld = downHeld && onFloor;
 
     if (downHeld && this.attackState.active) {
       this.clearAttackState();
     }
 
-    if (!downHeld && !inHurtSequence && Phaser.Input.Keyboard.JustDown(this.keys.attack)) {
+    if (!downHeld && !inHurtSequence && this.isAttackJustPressed()) {
       this.tryStartAttack();
     }
 
-    if (!downHeld && !inHurtSequence && Phaser.Input.Keyboard.JustDown(this.keys.up) && onFloor && !this.isPaused && !this.attackState.active) {
+    if (!downHeld && !inHurtSequence && this.isJumpJustPressed() && onFloor && !this.isPaused && !this.attackState.active) {
       this.player.setVelocityY(PLAYER_JUMP_SPEED);
       this.jumpSfx.play();
     }
@@ -726,10 +800,10 @@ class LevelScene extends Phaser.Scene {
     if (crouching) {
       this.player.setVelocityX(0);
     } else if (allowHorizontalControl) {
-      if (this.keys.left.isDown && !this.keys.right.isDown) {
+      if (this.isLeftDown() && !this.isRightDown()) {
         this.player.setVelocityX(-PLAYER_MOVE_SPEED);
         this.lastFacing = -1;
-      } else if (this.keys.right.isDown && !this.keys.left.isDown) {
+      } else if (this.isRightDown() && !this.isLeftDown()) {
         this.player.setVelocityX(PLAYER_MOVE_SPEED);
         this.lastFacing = 1;
       } else {
@@ -884,7 +958,7 @@ class LevelScene extends Phaser.Scene {
     wizard.anims.play("wizard-fire", true);
 
     this.time.delayedCall(260, () => {
-      if (!this.gameOver && !this.isPaused && wizard.active && !wizard.getData("dead")) {
+      if (!this.gameOver && !this.levelComplete && !this.isPaused && wizard.active && !wizard.getData("dead")) {
         this.spawnFireball(wizard);
       }
     });
@@ -992,6 +1066,10 @@ class LevelScene extends Phaser.Scene {
   }
 
   spawnFireball(wizard) {
+    if (this.levelComplete || this.gameOver) {
+      return;
+    }
+
     const direction = this.player.x >= wizard.x ? 1 : -1;
     const spawnX = wizard.x + direction * 24;
     const spawnY = wizard.y - 12;
@@ -1023,13 +1101,18 @@ class LevelScene extends Phaser.Scene {
   }
 
   onFireballHitsPlayer(fireball) {
+    if (this.levelComplete) {
+      this.recycleFireball(fireball);
+      return;
+    }
+
     const direction = Math.sign(fireball.body.velocity.x) || 1;
     this.recycleFireball(fireball);
     this.hurtPlayer(direction);
   }
 
   onPlayerEnemyOverlap(enemy) {
-    if (!enemy || !enemy.active || enemy.getData("dead") || this.gameOver) {
+    if (!enemy || !enemy.active || enemy.getData("dead") || this.gameOver || this.levelComplete) {
       return;
     }
 
@@ -1047,7 +1130,7 @@ class LevelScene extends Phaser.Scene {
   }
 
   hurtPlayer(knockbackDirection) {
-    if (this.gameOver || this.time.now < this.playerInvulnerableUntil) {
+    if (this.gameOver || this.levelComplete || this.time.now < this.playerInvulnerableUntil) {
       return;
     }
 
@@ -1099,7 +1182,7 @@ class LevelScene extends Phaser.Scene {
   }
 
   triggerGameOver() {
-    if (this.gameOver) {
+    if (this.gameOver || this.levelComplete) {
       return;
     }
 
@@ -1107,11 +1190,65 @@ class LevelScene extends Phaser.Scene {
     this.isPaused = false;
     this.pauseText.setVisible(false);
     this.pauseInstructionsText.setVisible(false);
+    this.levelCompleteText.setVisible(false);
+    this.levelCompleteRestartText.setVisible(false);
     this.physics.world.pause();
     this.clearAttackState();
     this.player.setVelocity(0, 0);
     this.gameOverText.setVisible(true);
     this.restartText.setVisible(true);
+  }
+
+  triggerLevelComplete() {
+    if (this.levelComplete || this.gameOver) {
+      return;
+    }
+
+    this.levelComplete = true;
+    this.levelCompleteScreenShown = false;
+    this.isPaused = false;
+    this.pauseText.setVisible(false);
+    this.pauseInstructionsText.setVisible(false);
+    this.gameOverText.setVisible(false);
+    this.restartText.setVisible(false);
+    this.clearAttackState();
+    this.playerInvulnerableUntil = Number.POSITIVE_INFINITY;
+    this.playerHurtUntil = 0;
+    this.fireballs.children.each((fireball) => {
+      this.recycleFireball(fireball);
+    });
+    this.physics.world.setBoundsCollision(true, false, false, true);
+    this.player.setCollideWorldBounds(false);
+  }
+
+  updateLevelCompleteSequence() {
+    if (this.levelCompleteScreenShown) {
+      if (Phaser.Input.Keyboard.JustDown(this.keys.restart)) {
+        this.scene.restart();
+      }
+      return;
+    }
+
+    this.lastFacing = 1;
+    this.player.setFlipX(false);
+    this.player.setVelocityX(LEVEL_COMPLETE_WALK_SPEED);
+
+    if (this.player.body.blocked.down || this.player.body.touching.down) {
+      this.player.anims.play("player-walk", true);
+    } else if (this.player.body.velocity.y < 0) {
+      this.player.anims.play("player-jump", true);
+    } else {
+      this.player.anims.play("player-fall", true);
+    }
+
+    const cameraRightX = this.cameras.main.scrollX + GAME_WIDTH;
+    if (this.player.x > cameraRightX + LEVEL_COMPLETE_OFFSCREEN_PADDING) {
+      this.levelCompleteScreenShown = true;
+      this.physics.world.pause();
+      this.player.setVisible(false);
+      this.levelCompleteText.setVisible(true);
+      this.levelCompleteRestartText.setVisible(true);
+    }
   }
 
   updateParallax() {
@@ -1125,6 +1262,8 @@ class LevelScene extends Phaser.Scene {
       scene: "level",
       paused: this.isPaused,
       gameOver: this.gameOver,
+      levelComplete: this.levelComplete,
+      levelCompleteScreenShown: this.levelCompleteScreenShown,
       world: {
         width: this.physics.world.bounds.width,
         height: this.physics.world.bounds.height,
@@ -1136,7 +1275,7 @@ class LevelScene extends Phaser.Scene {
         vy: Number(this.player.body.velocity.y.toFixed(2)),
         onFloor: this.player.body.blocked.down,
         facing: this.lastFacing < 0 ? "left" : "right",
-        crouching: this.keys.down.isDown && this.player.body.blocked.down,
+        crouching: this.isDownDown() && this.player.body.blocked.down,
         attacking: this.attackState.active,
         attackKind: this.attackState.kind,
         health: this.health,
@@ -1146,7 +1285,7 @@ class LevelScene extends Phaser.Scene {
         ghoulsAlive: this.ghouls.countActive(true),
         fireballsActive: this.fireballs.countActive(true),
       },
-      controls: "W jump, S crouch, A/D move, J attack, ESC pause, ENTER restart on game over",
+      controls: DEBUG_CONTROLS_TEXT,
     };
   }
 
@@ -1155,6 +1294,13 @@ class LevelScene extends Phaser.Scene {
       if (Phaser.Input.Keyboard.JustDown(this.keys.restart)) {
         this.scene.restart();
       }
+      this.updateParallax();
+      this.updateDebugState();
+      return;
+    }
+
+    if (this.levelComplete) {
+      this.updateLevelCompleteSequence();
       this.updateParallax();
       this.updateDebugState();
       return;
@@ -1169,6 +1315,13 @@ class LevelScene extends Phaser.Scene {
 
       if (this.player.y > GAME_HEIGHT + 28) {
         this.triggerGameOver();
+      }
+
+      const cameraAtLevelEnd = this.cameras.main.scrollX >= this.map.widthInPixels - GAME_WIDTH - 1;
+      const reachedRightBoundary =
+        this.player.body.blocked.right || this.player.x >= this.map.widthInPixels - LEVEL_COMPLETE_TRIGGER_PADDING;
+      if (cameraAtLevelEnd && reachedRightBoundary) {
+        this.triggerLevelComplete();
       }
     }
 

@@ -384,3 +384,80 @@ Original prompt: Implement a single level according to the DESIGN-DOCUMENT and $
 
 - `favicon.ico` exists and is a valid icon resource (`32x32`, `32bpp`).
 - Browser requests to `/favicon.ico` now resolve to a real file instead of 404.
+
+### Follow-up Prompt
+
+- Use $game-dev and add couple more flaming ghouls on some of the flat surfaces (where there are currently enemies missing)
+
+### Follow-up Updates
+
+- Added multi-placement ghoul spawning in `main.js`:
+  - `spawnGhouls()` now uses a placements list instead of a single hardcoded ghoul.
+  - Added `spawnGhoulAtPlacement({ seedTileX, spawnLerp, patrolDir })` helper to reuse map-derived span logic for each ghoul.
+- Added two additional burning ghouls on flat surfaces with missing enemy coverage:
+  - Mid-right platform placement (`seedTileX: 146`).
+  - Far-right platform placement (`seedTileX: 252`).
+- Kept existing behavior for per-ghoul patrol bounds:
+  - Bounds are still computed from `findSolidSpanAtTileRow(...)`.
+  - Spawn x is derived from span interpolation (`spawnLerp`), and initial facing now matches initial patrol direction.
+
+### Validation
+
+- `node --check main.js` passed.
+- Playwright runtime probe confirms 3 active ghouls with distinct patrol bounds:
+  - Ghoul 1 bounds `604..1044`
+  - Ghoul 2 bounds `2220..2452`
+  - Ghoul 3 bounds `3900..4148`
+- Movement samples showed all three new/default ghouls advancing within their assigned spans after scene load.
+
+### Follow-up Prompt
+
+- Change the instructions in title menu and pause menu so "Movement" and "Action" are on separate lines
+
+### Follow-up Updates
+
+- Updated shared controls copy in `main.js`:
+  - Changed `CONTROLS_TEXT` to include a newline between labels:
+    - `Movement: ...`
+    - `Action: ...`
+- Since both title and pause menus already render `CONTROLS_TEXT`, this applies to both screens with a single change.
+
+### Validation
+
+- `node --check main.js` passed.
+
+### Follow-up Prompt
+
+- it would be great when the player comes to the right-most part of the level to automatically have the player walk off-screen and show a "Congratulations! Level Complete" screen
+
+### Follow-up Updates
+
+- Added a full level-complete flow in `main.js`:
+  - New level-complete state flags (`levelComplete`, `levelCompleteScreenShown`).
+  - New trigger constants for end-of-level detection and off-screen walk timing.
+  - New completion UI overlay texts:
+    - `Congratulations!`
+    - `Level Complete`
+    - restart prompt (`PRESS ENTER TO RESTART`).
+- Implemented automatic end-of-level transition:
+  - When player reaches the right-most end (camera at max scroll + right boundary), `triggerLevelComplete()` runs.
+  - Player automatically continues walking right and exits camera view.
+  - Once off-screen, physics pauses and the completion overlay is shown.
+- Added guardrails for end-state behavior:
+  - Pause toggling disabled during completion sequence.
+  - Enemy/fireball damage and new fireball spawns are ignored after completion starts.
+  - Existing game-over overlay is hidden if completion state is active.
+- Added debug output fields:
+  - `levelComplete`
+  - `levelCompleteScreenShown`
+
+### Validation
+
+- `node --check main.js` passed.
+- Playwright runtime probe confirmed end-to-end completion sequence:
+  - `levelComplete: true`
+  - `levelCompleteScreenShown: true`
+  - completion text + restart prompt visible
+  - `gameOver: false`
+- Screenshot captured:
+  - `output/playwright/level-complete-screen.png`

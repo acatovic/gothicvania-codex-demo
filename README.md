@@ -131,6 +131,14 @@ sprites - we are not there yet. Probably the backgrounds and maybe the tilemaps 
 help of AI, but sprites are not there yet. Regardless, this was an amazing experience and a great stepping stone to
 more agentic game creation.
 
+## Development
+
+Sometimes Codex throws network errors during `npm install` so you may need to execute this command
+beforehand.
+
+Otherwise simply start `codex` and invoke the skills using `$game-dev`.
+
+
 ## Attribution
 
 The assets in this project were **NOT** AI generated - they were made by humans.

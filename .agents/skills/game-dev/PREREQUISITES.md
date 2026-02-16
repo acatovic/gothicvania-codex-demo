@@ -28,7 +28,7 @@ npm --version
 2. Install Playwright in this project. From the project root:
 
 ```
-npm install -D playwright playwright-cli
+npm install -D @playwright/cli
 npx playwright install
 ```
 
