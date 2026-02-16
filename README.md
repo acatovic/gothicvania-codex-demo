@@ -141,6 +141,3 @@ it's due:
 * The haunting soundtrack is created by [Pascal Belisle](https://soundcloud.com/thetoadz).
 * I created the level using [Tiled](https://www.mapeditor.org/) map editor.
 * I am using [Phaser](https://phaser.io/) JS game engine - though I never looked at a single piece of code there.
-
-
-https://openai.com/index/harness-engineering/
